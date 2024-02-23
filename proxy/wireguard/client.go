@@ -211,6 +211,7 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 		if err != nil {
 			return newError("failed to create UDP connection").Base(err)
 		}
+
 		defer conn.Close()
 
 		requestFunc = func() error {
@@ -253,7 +254,6 @@ func (h *Handler) makeVirtualTun(bind *netBindClient) (Tunnel, error) {
 	}
 	return t, nil
 }
-
 
 // serialize the config into an IPC request
 func (h *Handler) createIPCRequest(bind *netBindClient, conf *DeviceConfig) string {
