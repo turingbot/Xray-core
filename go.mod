@@ -1,4 +1,4 @@
-module github.com/xtls/xray-core
+module github.com/GFW-knocker/Xray-core
 
 go 1.21.6
 
