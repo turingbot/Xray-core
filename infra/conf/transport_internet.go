@@ -14,10 +14,12 @@ import (
 	"github.com/GFW-knocker/Xray-core/common/errors"
 	"github.com/GFW-knocker/Xray-core/common/net"
 	"github.com/GFW-knocker/Xray-core/common/platform/filesystem"
+	"github.com/GFW-knocker/Xray-core/common/protocol"
 	"github.com/GFW-knocker/Xray-core/common/serial"
 	"github.com/GFW-knocker/Xray-core/transport/internet"
 	"github.com/GFW-knocker/Xray-core/transport/internet/httpupgrade"
 	"github.com/GFW-knocker/Xray-core/transport/internet/kcp"
+	"github.com/GFW-knocker/Xray-core/transport/internet/quic"
 	"github.com/GFW-knocker/Xray-core/transport/internet/reality"
 	"github.com/GFW-knocker/Xray-core/transport/internet/splithttp"
 	"github.com/GFW-knocker/Xray-core/transport/internet/tcp"
@@ -325,6 +327,47 @@ func (c *SplitHTTPConfig) Build() (proto.Message, error) {
 		if config.DownloadSettings, err = c.DownloadSettings.Build(); err != nil {
 			return nil, errors.New(`Failed to build "downloadSettings".`).Base(err)
 		}
+	}
+
+	return config, nil
+}
+
+type QUICConfig struct {
+	Header   json.RawMessage `json:"header"`
+	Security string          `json:"security"`
+	Key      string          `json:"key"`
+}
+
+// Build implements Buildable.
+func (c *QUICConfig) Build() (proto.Message, error) {
+	config := &quic.Config{
+		Key: c.Key,
+	}
+
+	if len(c.Header) > 0 {
+		headerConfig, _, err := kcpHeaderLoader.Load(c.Header)
+		if err != nil {
+			return nil, errors.New("invalid QUIC header config.").Base(err).AtError()
+		}
+		ts, err := headerConfig.(Buildable).Build()
+		if err != nil {
+			return nil, errors.New("invalid QUIC header config").Base(err).AtError()
+		}
+		config.Header = serial.ToTypedMessage(ts)
+	}
+
+	var st protocol.SecurityType
+	switch strings.ToLower(c.Security) {
+	case "aes-128-gcm":
+		st = protocol.SecurityType_AES128_GCM
+	case "chacha20-poly1305":
+		st = protocol.SecurityType_CHACHA20_POLY1305
+	default:
+		st = protocol.SecurityType_NONE
+	}
+
+	config.Security = &protocol.SecurityConfig{
+		Type: st,
 	}
 
 	return config, nil
@@ -664,7 +707,8 @@ func (p TransportProtocol) Build() (string, error) {
 	case "h2", "h3", "http":
 		return "", errors.PrintRemovedFeatureError("HTTP transport (without header padding, etc.)", "XHTTP stream-one H2 & H3")
 	case "quic":
-		return "", errors.PrintRemovedFeatureError("QUIC transport (without web service, etc.)", "XHTTP stream-one H3")
+		errors.PrintRemovedFeatureError("QUIC transport (without web service, etc.)", "XHTTP stream-one H3")
+		return "quic", nil
 	default:
 		return "", errors.New("Config: unknown transport protocol: ", p)
 	}
@@ -797,6 +841,7 @@ type StreamConfig struct {
 	XHTTPSettings       *SplitHTTPConfig   `json:"xhttpSettings"`
 	SplitHTTPSettings   *SplitHTTPConfig   `json:"splithttpSettings"`
 	KCPSettings         *KCPConfig         `json:"kcpSettings"`
+	QUICSettings        *QUICConfig        `json:"quicSettings"`
 	GRPCSettings        *GRPCConfig        `json:"grpcSettings"`
 	WSSettings          *WebSocketConfig   `json:"wsSettings"`
 	HTTPUPGRADESettings *HttpUpgradeConfig `json:"httpupgradeSettings"`
@@ -906,6 +951,16 @@ func (c *StreamConfig) Build() (*internet.StreamConfig, error) {
 		config.TransportSettings = append(config.TransportSettings, &internet.TransportConfig{
 			ProtocolName: "websocket",
 			Settings:     serial.ToTypedMessage(ts),
+		})
+	}
+	if c.QUICSettings != nil {
+		qs, err := c.QUICSettings.Build()
+		if err != nil {
+			return nil, errors.New("Failed to build QUIC config").Base(err)
+		}
+		config.TransportSettings = append(config.TransportSettings, &internet.TransportConfig{
+			ProtocolName: "quic",
+			Settings:     serial.ToTypedMessage(qs),
 		})
 	}
 	if c.HTTPUPGRADESettings != nil {
