@@ -33,7 +33,8 @@ https://github.com/XTLS/Xray-core
   - [ghcr.io/xtls/xray-core](https://ghcr.io/xtls/xray-core) (**Official**)
   - [teddysun/xray](https://hub.docker.com/r/teddysun/xray)
   - [wulabing/xray_docker](https://github.com/wulabing/xray_docker)
-- Web Panel - **WARNING: Please DO NOT USE plain HTTP panels like 3X-UI**, as they are believed to be bribed by Iran GFW for supporting plain HTTP by default and refused to change (https://github.com/XTLS/Xray-core/pull/3884#issuecomment-2439595331), which has already put many users' data security in danger in the past few years. **If you are already using 3X-UI, please switch to the following panels, which are verified to support HTTPS and SSH port forwarding only:**
+- Web Panel
+  - [3x-ui](https://github.com/MHSanaei/3x-ui)
   - [Marzban](https://github.com/Gozargah/Marzban)
   - [Xray-UI](https://github.com/qist/xray-ui)
   - [Hiddify](https://github.com/hiddify/Hiddify-Manager)
@@ -75,6 +76,7 @@ https://github.com/XTLS/Xray-core
   - [Furious](https://github.com/LorenEteval/Furious)
   - [Invisible Man - Xray](https://github.com/InvisibleManVPN/InvisibleMan-XRayClient)
 - Android
+  - [MahsaNG](https://github.com/GFW-knocker/MahsaNG)
   - [v2rayNG](https://github.com/2dust/v2rayNG)
   - [X-flutter](https://github.com/XTLS/X-flutter)
   - [SaeedDev94/Xray](https://github.com/SaeedDev94/Xray)
