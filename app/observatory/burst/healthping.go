@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/xtls/xray-core/common/dice"
-	"github.com/xtls/xray-core/common/errors"
-	"github.com/xtls/xray-core/features/routing"
+	"github.com/GFW-knocker/Xray-core/common/dice"
+	"github.com/GFW-knocker/Xray-core/common/errors"
+	"github.com/GFW-knocker/Xray-core/features/routing"
 )
 
 // HealthPingSettings holds settings for health Checker
@@ -66,10 +66,10 @@ func NewHealthPing(ctx context.Context, dispatcher routing.Dispatcher, config *H
 		settings.Timeout = time.Duration(5) * time.Second
 	}
 	return &HealthPing{
-		ctx:      ctx,
+		ctx:        ctx,
 		dispatcher: dispatcher,
-		Settings: settings,
-		Results:  nil,
+		Settings:   settings,
+		Results:    nil,
 	}
 }
 

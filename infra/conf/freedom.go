@@ -4,12 +4,13 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"net"
+	"strconv"
 	"strings"
 
-	"github.com/xtls/xray-core/common/errors"
-	v2net "github.com/xtls/xray-core/common/net"
-	"github.com/xtls/xray-core/common/protocol"
-	"github.com/xtls/xray-core/proxy/freedom"
+	"github.com/GFW-knocker/Xray-core/common/errors"
+	v2net "github.com/GFW-knocker/Xray-core/common/net"
+	"github.com/GFW-knocker/Xray-core/common/protocol"
+	"github.com/GFW-knocker/Xray-core/proxy/freedom"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -24,9 +25,13 @@ type FreedomConfig struct {
 }
 
 type Fragment struct {
-	Packets  string      `json:"packets"`
-	Length   *Int32Range `json:"length"`
-	Interval *Int32Range `json:"interval"`
+	Packets      string `json:"packets"`
+	Length       string `json:"length"`
+	Interval     string `json:"interval"`
+	Host1_header string `json:"host1_header"`
+	Host1_domain string `json:"host1_domain"`
+	Host2_header string `json:"host2_header"`
+	Host2_domain string `json:"host2_domain"`
 }
 
 type Noise struct {
@@ -67,47 +72,123 @@ func (c *FreedomConfig) Build() (proto.Message, error) {
 
 	if c.Fragment != nil {
 		config.Fragment = new(freedom.Fragment)
+		var err, err2 error
+
+		config.Fragment.FakeHost = false
 
 		switch strings.ToLower(c.Fragment.Packets) {
 		case "tlshello":
 			// TLS Hello Fragmentation (into multiple handshake messages)
 			config.Fragment.PacketsFrom = 0
 			config.Fragment.PacketsTo = 1
+		case "fakehost":
+			// fake host header with no fragmentation
+			config.Fragment.PacketsFrom = 1
+			config.Fragment.PacketsTo = 1
+			config.Fragment.FakeHost = true
 		case "":
 			// TCP Segmentation (all packets)
 			config.Fragment.PacketsFrom = 0
 			config.Fragment.PacketsTo = 0
 		default:
 			// TCP Segmentation (range)
-			from, to, err := ParseRangeString(c.Fragment.Packets)
+			packetsFromTo := strings.Split(c.Fragment.Packets, "-")
+			if len(packetsFromTo) == 2 {
+				config.Fragment.PacketsFrom, err = strconv.ParseUint(packetsFromTo[0], 10, 64)
+				config.Fragment.PacketsTo, err2 = strconv.ParseUint(packetsFromTo[1], 10, 64)
+			} else {
+				config.Fragment.PacketsFrom, err = strconv.ParseUint(packetsFromTo[0], 10, 64)
+				config.Fragment.PacketsTo = config.Fragment.PacketsFrom
+			}
 			if err != nil {
 				return nil, errors.New("Invalid PacketsFrom").Base(err)
 			}
-			config.Fragment.PacketsFrom = uint64(from)
-			config.Fragment.PacketsTo = uint64(to)
+			if err2 != nil {
+				return nil, errors.New("Invalid PacketsTo").Base(err2)
+			}
+			if config.Fragment.PacketsFrom > config.Fragment.PacketsTo {
+				config.Fragment.PacketsFrom, config.Fragment.PacketsTo = config.Fragment.PacketsTo, config.Fragment.PacketsFrom
+			}
 			if config.Fragment.PacketsFrom == 0 {
 				return nil, errors.New("PacketsFrom can't be 0")
 			}
 		}
 
 		{
-			if c.Fragment.Length == nil {
+			if c.Fragment.Length == "" {
 				return nil, errors.New("Length can't be empty")
 			}
-			config.Fragment.LengthMin = uint64(c.Fragment.Length.From)
-			config.Fragment.LengthMax = uint64(c.Fragment.Length.To)
+			lengthMinMax := strings.Split(c.Fragment.Length, "-")
+			if len(lengthMinMax) == 2 {
+				config.Fragment.LengthMin, err = strconv.ParseUint(lengthMinMax[0], 10, 64)
+				config.Fragment.LengthMax, err2 = strconv.ParseUint(lengthMinMax[1], 10, 64)
+			} else {
+				config.Fragment.LengthMin, err = strconv.ParseUint(lengthMinMax[0], 10, 64)
+				config.Fragment.LengthMax = config.Fragment.LengthMin
+			}
+			if err != nil {
+				return nil, errors.New("Invalid LengthMin").Base(err)
+			}
+			if err2 != nil {
+				return nil, errors.New("Invalid LengthMax").Base(err2)
+			}
+			if config.Fragment.LengthMin > config.Fragment.LengthMax {
+				config.Fragment.LengthMin, config.Fragment.LengthMax = config.Fragment.LengthMax, config.Fragment.LengthMin
+			}
 			if config.Fragment.LengthMin == 0 {
 				return nil, errors.New("LengthMin can't be 0")
 			}
 		}
 
 		{
-			if c.Fragment.Interval == nil {
+			if c.Fragment.Interval == "" {
 				return nil, errors.New("Interval can't be empty")
 			}
-			config.Fragment.IntervalMin = uint64(c.Fragment.Interval.From)
-			config.Fragment.IntervalMax = uint64(c.Fragment.Interval.To)
+			intervalMinMax := strings.Split(c.Fragment.Interval, "-")
+			if len(intervalMinMax) == 2 {
+				config.Fragment.IntervalMin, err = strconv.ParseUint(intervalMinMax[0], 10, 64)
+				config.Fragment.IntervalMax, err2 = strconv.ParseUint(intervalMinMax[1], 10, 64)
+			} else {
+				config.Fragment.IntervalMin, err = strconv.ParseUint(intervalMinMax[0], 10, 64)
+				config.Fragment.IntervalMax = config.Fragment.IntervalMin
+			}
+			if err != nil {
+				return nil, errors.New("Invalid IntervalMin").Base(err)
+			}
+			if err2 != nil {
+				return nil, errors.New("Invalid IntervalMax").Base(err2)
+			}
+			if config.Fragment.IntervalMin > config.Fragment.IntervalMax {
+				config.Fragment.IntervalMin, config.Fragment.IntervalMax = config.Fragment.IntervalMax, config.Fragment.IntervalMin
+			}
 		}
+
+		{
+			if c.Fragment.Host1_header == "" {
+				config.Fragment.Host1Header = "Host : "
+			} else {
+				config.Fragment.Host1Header = c.Fragment.Host1_header
+			}
+
+			if c.Fragment.Host1_domain == "" {
+				config.Fragment.Host1Domain = "cloudflare.com"
+			} else {
+				config.Fragment.Host1Domain = c.Fragment.Host1_domain
+			}
+
+			if c.Fragment.Host2_header == "" {
+				config.Fragment.Host2Header = "Host:   "
+			} else {
+				config.Fragment.Host2Header = c.Fragment.Host2_header
+			}
+
+			if c.Fragment.Host2_domain == "" {
+				config.Fragment.Host2Domain = "cloudflare.com"
+			} else {
+				config.Fragment.Host2Domain = c.Fragment.Host2_domain
+			}
+		}
+
 	}
 
 	if c.Noise != nil {

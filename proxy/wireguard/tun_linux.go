@@ -13,10 +13,10 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/GFW-knocker/Xray-core/common/errors"
+	wgtun "github.com/GFW-knocker/wireguard/tun"
 	"github.com/sagernet/sing/common/control"
 	"github.com/vishvananda/netlink"
-	"github.com/xtls/xray-core/common/errors"
-	wgtun "golang.zx2c4.com/wireguard/tun"
 )
 
 type deviceNet struct {

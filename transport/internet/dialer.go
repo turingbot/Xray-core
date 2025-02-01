@@ -3,17 +3,17 @@ package internet
 import (
 	"context"
 
-	"github.com/xtls/xray-core/common"
-	"github.com/xtls/xray-core/common/dice"
-	"github.com/xtls/xray-core/common/errors"
-	"github.com/xtls/xray-core/common/net"
-	"github.com/xtls/xray-core/common/net/cnc"
-	"github.com/xtls/xray-core/common/session"
-	"github.com/xtls/xray-core/features/dns"
-	"github.com/xtls/xray-core/features/outbound"
-	"github.com/xtls/xray-core/transport"
-	"github.com/xtls/xray-core/transport/internet/stat"
-	"github.com/xtls/xray-core/transport/pipe"
+	"github.com/GFW-knocker/Xray-core/common"
+	"github.com/GFW-knocker/Xray-core/common/dice"
+	"github.com/GFW-knocker/Xray-core/common/errors"
+	"github.com/GFW-knocker/Xray-core/common/net"
+	"github.com/GFW-knocker/Xray-core/common/net/cnc"
+	"github.com/GFW-knocker/Xray-core/common/session"
+	"github.com/GFW-knocker/Xray-core/features/dns"
+	"github.com/GFW-knocker/Xray-core/features/outbound"
+	"github.com/GFW-knocker/Xray-core/transport"
+	"github.com/GFW-knocker/Xray-core/transport/internet/stat"
+	"github.com/GFW-knocker/Xray-core/transport/pipe"
 )
 
 // Dialer is the interface for dialing outbound connections.
@@ -120,8 +120,16 @@ func redirect(ctx context.Context, dst net.Destination, obt string) net.Conn {
 		Tag:     obt,
 	})) // add another outbound in session ctx
 	if h != nil {
+
 		ur, uw := pipe.New(pipe.OptionsFromContext(ctx)...)
 		dr, dw := pipe.New(pipe.OptionsFromContext(ctx)...)
+
+		// --------------------------------------------------------
+		// mmmray : disable dialer buffer for wireguard chain speed problem (temporary workaround)
+		// ur, uw := pipe.New(pipe.WithSizeLimit(0))
+		// dr, dw := pipe.New(pipe.WithSizeLimit(0))
+		// better solution is to use ConnectionOutputMultiUDP() as below
+		// ----------------------------------------------------------
 
 		go h.Dispatch(context.WithoutCancel(ctx), &transport.Link{Reader: ur, Writer: dw})
 		var readerOpt cnc.ConnectionOption
