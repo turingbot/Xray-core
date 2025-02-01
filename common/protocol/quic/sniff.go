@@ -8,12 +8,13 @@ import (
 	"encoding/binary"
 	"io"
 
+  "github.com/quic-go/quic-go/quicvarint"
 	"github.com/GFW-knocker/Xray-core/common"
 	"github.com/GFW-knocker/Xray-core/common/buf"
 	"github.com/GFW-knocker/Xray-core/common/bytespool"
 	"github.com/GFW-knocker/Xray-core/common/errors"
 	ptls "github.com/GFW-knocker/Xray-core/common/protocol/tls"
-	"github.com/xtls/quic-go/quicvarint"
+
 	"golang.org/x/crypto/hkdf"
 )
 
