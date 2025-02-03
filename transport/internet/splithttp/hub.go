@@ -13,9 +13,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/GFW-knocker/Xray-core/common"
+	"github.com/GFW-knocker/Xray-core/common/errors"
+	"github.com/GFW-knocker/Xray-core/common/net"
+	http_proto "github.com/GFW-knocker/Xray-core/common/protocol/http"
+	"github.com/GFW-knocker/Xray-core/common/signal/done"
+	"github.com/GFW-knocker/Xray-core/transport/internet"
+	"github.com/GFW-knocker/Xray-core/transport/internet/reality"
+	"github.com/GFW-knocker/Xray-core/transport/internet/stat"
+	v2tls "github.com/GFW-knocker/Xray-core/transport/internet/tls"
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
-
 	goreality "github.com/xtls/reality"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
