@@ -32,6 +32,8 @@ message Noise {
   uint64 delay_min = 3;
   uint64 delay_max = 4;
   bytes packet = 5;
+  uint64 count_min = 6;
+  uint64 count_max = 7;
 }
 
 message Config {
@@ -54,4 +56,5 @@ message Config {
   Fragment fragment = 5;  
   uint32 proxy_protocol = 6;
   repeated Noise noises = 7;
+  uint32 noise_keep_alive = 8;
 }

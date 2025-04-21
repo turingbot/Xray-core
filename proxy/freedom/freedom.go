@@ -208,10 +208,11 @@ func (h *Handler) Process(ctx context.Context, link *transport.Link, dialer inte
 			if h.config.Noises != nil {
 				errors.LogDebug(ctx, "NOISE", h.config.Noises)
 				writer = &NoisePacketWriter{
-					Writer:      writer,
-					noises:      h.config.Noises,
-					firstWrite:  true,
-					UDPOverride: UDPOverride,
+					Writer:         writer,
+					noises:         h.config.Noises,
+					noiseKeepAlive: h.config.NoiseKeepAlive,
+					firstWrite:     true,
+					UDPOverride:    UDPOverride,
 				}
 			}
 		}
@@ -395,9 +396,12 @@ func (w *PacketWriter) WriteMultiBuffer(mb buf.MultiBuffer) error {
 
 type NoisePacketWriter struct {
 	buf.Writer
-	noises      []*Noise
-	firstWrite  bool
-	UDPOverride net.Destination
+	noises         []*Noise
+	noiseKeepAlive uint32
+	firstWrite     bool
+	UDPOverride    net.Destination
+	stopChan       chan struct{} // Channel to stop the keepalive goroutine
+	ticker         *time.Ticker  // Ticker for periodic noise
 }
 
 // MultiBuffer writer with Noise before first packet
@@ -408,29 +412,88 @@ func (w *NoisePacketWriter) WriteMultiBuffer(mb buf.MultiBuffer) error {
 		if w.UDPOverride.Port == 53 {
 			return w.Writer.WriteMultiBuffer(mb)
 		}
-		var noise []byte
-		var err error
-		for _, n := range w.noises {
-			//User input string or base64 encoded string
-			if n.Packet != nil {
-				noise = n.Packet
-			} else {
-				//Random noise
-				noise, err = GenerateRandomBytes(randBetween(int64(n.LengthMin),
-					int64(n.LengthMax)))
-			}
-			if err != nil {
-				return err
-			}
-			w.Writer.WriteMultiBuffer(buf.MultiBuffer{buf.FromBytes(noise)})
 
-			if n.DelayMin != 0 || n.DelayMax != 0 {
-				time.Sleep(time.Duration(randBetween(int64(n.DelayMin), int64(n.DelayMax))) * time.Millisecond)
-			}
+		// Send initial noise
+		if err := w.sendNoise(); err != nil {
+			return err
+		}
+
+		// Start keepalive goroutine
+		if w.noiseKeepAlive > 0 {
+			w.stopChan = make(chan struct{})
+			w.ticker = time.NewTicker(time.Duration(w.noiseKeepAlive) * time.Second)
+			go w.keepNoiseAlive()
 		}
 
 	}
 	return w.Writer.WriteMultiBuffer(mb)
+}
+
+func (w *NoisePacketWriter) sendNoise() error {
+	var noise []byte
+	var err error
+	var count int64
+	var delay time.Duration
+
+	for _, n := range w.noises {
+		//User input string or base64 encoded string
+		if n.Packet != nil {
+			noise = n.Packet
+		} else {
+			//Random noise
+			noise, err = GenerateRandomBytes(randBetween(int64(n.LengthMin), int64(n.LengthMax)))
+		}
+		if err != nil {
+			return err
+		}
+
+		count = randBetween(int64(n.CountMin), int64(n.CountMax))
+		if count < 1 {
+			count = 1
+		} else if count > 100 {
+			count = 100
+		}
+
+		if n.DelayMin != 0 || n.DelayMax != 0 {
+			delay = time.Duration(randBetween(int64(n.DelayMin), int64(n.DelayMax))) * time.Millisecond
+		} else {
+			delay = time.Duration(0)
+		}
+
+		for range count {
+			w.Writer.WriteMultiBuffer(buf.MultiBuffer{buf.FromBytes(noise)})
+			if delay > 0 {
+				time.Sleep(delay)
+			}
+		}
+
+	}
+	return nil
+}
+
+func (w *NoisePacketWriter) keepNoiseAlive() {
+	for {
+		select {
+		case <-w.ticker.C:
+			if err := w.sendNoise(); err != nil {
+				break
+			}
+		case <-w.stopChan:
+			w.ticker.Stop()
+			return
+		}
+	}
+}
+
+// Close implements io.Closer
+func (w *NoisePacketWriter) Close() error {
+	if w.stopChan != nil {
+		close(w.stopChan)
+	}
+	if closer, ok := w.Writer.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
 }
 
 type FragmentWriter struct {
@@ -478,7 +541,7 @@ func (f *FragmentWriter) Write(b []byte) (int, error) {
 		data := b[5:recordLen]
 		buf := make([]byte, 1024)
 		queue := make([]byte, 2048)
-		n_queue := int(randBetween(int64(1), int64(4)))
+		n_queue := int(randBetween(int64(2), int64(4)))
 		L_queue := 0
 		c_queue := 0
 		for from := 0; ; {
@@ -561,14 +624,14 @@ func (f *FragmentWriter) Write(b []byte) (int, error) {
 	}
 }
 
-// copy from github.com/GFW-knocker/Xray-core/transport/internet/reality
 func randBetween(left int64, right int64) int64 {
 	if left == right {
 		return left
 	}
-	bigInt, _ := rand.Int(rand.Reader, big.NewInt(right-left))
+	bigInt, _ := rand.Int(rand.Reader, big.NewInt(right-left+1))
 	return left + bigInt.Int64()
 }
+
 func GenerateRandomBytes(n int64) ([]byte, error) {
 	b := make([]byte, n)
 	_, err := rand.Read(b)

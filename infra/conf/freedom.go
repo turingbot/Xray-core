@@ -21,6 +21,7 @@ type FreedomConfig struct {
 	Fragment       *Fragment `json:"fragment"`
 	Noise          *Noise    `json:"noise"`
 	Noises         []*Noise  `json:"noises"`
+	NoiseKeepAlive uint32    `json:"noiseKeepAlive"`
 	ProxyProtocol  uint32    `json:"proxyProtocol"`
 }
 
@@ -38,6 +39,7 @@ type Noise struct {
 	Type   string      `json:"type"`
 	Packet string      `json:"packet"`
 	Delay  *Int32Range `json:"delay"`
+	Count  *Int32Range `json:"count"`
 }
 
 // Build implements Buildable
@@ -205,6 +207,10 @@ func (c *FreedomConfig) Build() (proto.Message, error) {
 		}
 	}
 
+	// nosekeepalive keep repeating noise every n sec
+	// if not defined in json, default is zero which is disable
+	config.NoiseKeepAlive = c.NoiseKeepAlive
+
 	config.UserLevel = c.UserLevel
 	if len(c.Redirect) > 0 {
 		host, portStr, err := net.SplitHostPort(c.Redirect)
@@ -274,5 +280,11 @@ func ParseNoise(noise *Noise) (*freedom.Noise, error) {
 		NConfig.DelayMin = uint64(noise.Delay.From)
 		NConfig.DelayMax = uint64(noise.Delay.To)
 	}
+
+	if noise.Count != nil {
+		NConfig.CountMin = uint64(noise.Count.From)
+		NConfig.CountMax = uint64(noise.Count.To)
+	}
+
 	return NConfig, nil
 }
