@@ -2,6 +2,7 @@ package stats
 
 import (
 	"context"
+	"time"
 
 	"github.com/GFW-knocker/Xray-core/common"
 	"github.com/GFW-knocker/Xray-core/common/errors"
@@ -30,6 +31,8 @@ type OnlineMap interface {
 	AddIP(string)
 	// List is the current OnlineMap ip list.
 	List() []string
+	// IpTimeMap return client ips and their last access time.
+	IpTimeMap() map[string]time.Time
 }
 
 // Channel is the interface for stats channel.

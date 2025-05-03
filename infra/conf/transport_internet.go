@@ -377,7 +377,7 @@ func (c *QUICConfig) Build() (proto.Message, error) {
 
 func readFileOrString(f string, s []string) ([]byte, error) {
 	if len(f) > 0 {
-		return filesystem.ReadFile(f)
+		return filesystem.ReadCert(f)
 	}
 	if len(s) > 0 {
 		return []byte(strings.Join(s, "\n")), nil
@@ -454,6 +454,7 @@ type TLSConfig struct {
 	CurvePreferences                     *StringList      `json:"curvePreferences"`
 	MasterKeyLog                         string           `json:"masterKeyLog"`
 	ServerNameToVerify                   string           `json:"serverNameToVerify"`
+	VerifyPeerCertInNames                []string         `json:"verifyPeerCertInNames"`
 }
 
 // Build implements Buildable.
@@ -475,6 +476,13 @@ func (c *TLSConfig) Build() (proto.Message, error) {
 	if c.ALPN != nil && len(*c.ALPN) > 0 {
 		config.NextProtocol = []string(*c.ALPN)
 	}
+	if len(config.NextProtocol) > 1 {
+		for _, p := range config.NextProtocol {
+			if tcp.IsFromMitm(p) {
+				return nil, errors.New(`only one element is allowed in "alpn" when using "fromMitm" in it`)
+			}
+		}
+	}
 	if c.CurvePreferences != nil && len(*c.CurvePreferences) > 0 {
 		config.CurvePreferences = []string(*c.CurvePreferences)
 	}
@@ -485,7 +493,7 @@ func (c *TLSConfig) Build() (proto.Message, error) {
 	config.CipherSuites = c.CipherSuites
 	config.Fingerprint = strings.ToLower(c.Fingerprint)
 	if config.Fingerprint != "unsafe" && tls.GetFingerprint(config.Fingerprint) == nil {
-		return nil, errors.New(`unknown fingerprint: `, config.Fingerprint)
+		return nil, errors.New(`unknown "fingerprint": `, config.Fingerprint)
 	}
 	config.RejectUnknownSni = c.RejectUnknownSNI
 
@@ -512,10 +520,11 @@ func (c *TLSConfig) Build() (proto.Message, error) {
 	}
 
 	config.MasterKeyLog = c.MasterKeyLog
-	config.ServerNameToVerify = c.ServerNameToVerify
-	if config.ServerNameToVerify != "" && config.Fingerprint == "unsafe" {
-		return nil, errors.New(`serverNameToVerify only works with uTLS for now`)
+
+	if c.ServerNameToVerify != "" {
+		return nil, errors.PrintRemovedFeatureError(`"serverNameToVerify"`, `"verifyPeerCertInNames"`)
 	}
+	config.VerifyPeerCertInNames = c.VerifyPeerCertInNames
 
 	return config, nil
 }
@@ -536,6 +545,7 @@ type REALITYConfig struct {
 
 	Fingerprint string `json:"fingerprint"`
 	ServerName  string `json:"serverName"`
+	Password    string `json:"password"`
 	PublicKey   string `json:"publicKey"`
 	ShortId     string `json:"shortId"`
 	SpiderX     string `json:"spiderX"`
@@ -644,11 +654,14 @@ func (c *REALITYConfig) Build() (proto.Message, error) {
 		if len(c.ServerNames) != 0 {
 			return nil, errors.New(`non-empty "serverNames", please use "serverName" instead`)
 		}
+		if c.Password != "" {
+			c.PublicKey = c.Password
+		}
 		if c.PublicKey == "" {
-			return nil, errors.New(`empty "publicKey"`)
+			return nil, errors.New(`empty "password"`)
 		}
 		if config.PublicKey, err = base64.RawURLEncoding.DecodeString(c.PublicKey); err != nil || len(config.PublicKey) != 32 {
-			return nil, errors.New(`invalid "publicKey": `, c.PublicKey)
+			return nil, errors.New(`invalid "password": `, c.PublicKey)
 		}
 		if len(c.ShortIds) != 0 {
 			return nil, errors.New(`non-empty "shortIds", please use "shortId" instead`)
@@ -722,10 +735,12 @@ func (p TransportProtocol) Build() (string, error) {
 }
 
 type CustomSockoptConfig struct {
-	Level string `json:"level"`
-	Opt   string `json:"opt"`
-	Value string `json:"value"`
-	Type  string `json:"type"`
+	Syetem  string `json:"system"`
+	Network string `json:"network"`
+	Level   string `json:"level"`
+	Opt     string `json:"opt"`
+	Value   string `json:"value"`
+	Type    string `json:"type"`
 }
 
 type SocketConfig struct {
@@ -746,6 +761,7 @@ type SocketConfig struct {
 	Interface            string                 `json:"interface"`
 	TcpMptcp             bool                   `json:"tcpMptcp"`
 	CustomSockopt        []*CustomSockoptConfig `json:"customSockopt"`
+	AddressPortStrategy  string                 `json:"addressPortStrategy"`
 }
 
 // Build implements Buildable.
@@ -807,12 +823,34 @@ func (c *SocketConfig) Build() (*internet.SocketConfig, error) {
 
 	for _, copt := range c.CustomSockopt {
 		customSockopt := &internet.CustomSockopt{
-			Level: copt.Level,
-			Opt:   copt.Opt,
-			Value: copt.Value,
-			Type:  copt.Type,
+			System:  copt.Syetem,
+			Network: copt.Network,
+			Level:   copt.Level,
+			Opt:     copt.Opt,
+			Value:   copt.Value,
+			Type:    copt.Type,
 		}
 		customSockopts = append(customSockopts, customSockopt)
+	}
+
+	addressPortStrategy := internet.AddressPortStrategy_None
+	switch strings.ToLower(c.AddressPortStrategy) {
+	case "none", "":
+		addressPortStrategy = internet.AddressPortStrategy_None
+	case "srvportonly":
+		addressPortStrategy = internet.AddressPortStrategy_SrvPortOnly
+	case "srvaddressonly":
+		addressPortStrategy = internet.AddressPortStrategy_SrvAddressOnly
+	case "srvportandaddress":
+		addressPortStrategy = internet.AddressPortStrategy_SrvPortAndAddress
+	case "txtportonly":
+		addressPortStrategy = internet.AddressPortStrategy_TxtPortOnly
+	case "txtaddressonly":
+		addressPortStrategy = internet.AddressPortStrategy_TxtAddressOnly
+	case "txtportandaddress":
+		addressPortStrategy = internet.AddressPortStrategy_TxtPortAndAddress
+	default:
+		return nil, errors.New("unsupported address and port strategy: ", c.AddressPortStrategy)
 	}
 
 	return &internet.SocketConfig{
@@ -833,6 +871,7 @@ func (c *SocketConfig) Build() (*internet.SocketConfig, error) {
 		Interface:            c.Interface,
 		TcpMptcp:             c.TcpMptcp,
 		CustomSockopt:        customSockopts,
+		AddressPortStrategy:  addressPortStrategy,
 	}, nil
 }
 
