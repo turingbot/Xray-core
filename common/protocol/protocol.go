@@ -1,4 +1,4 @@
-package protocol // import "github.com/xtls/xray-core/common/protocol"
+package protocol // import "github.com/GFW-knocker/Xray-core/common/protocol"
 
 import (
 	"errors"

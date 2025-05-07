@@ -2,12 +2,13 @@ package wireguard_test
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"runtime/debug"
 	"testing"
 
-	"github.com/xtls/xray-core/core"
-	"github.com/xtls/xray-core/proxy/wireguard"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/GFW-knocker/Xray-core/core"
+	"github.com/GFW-knocker/Xray-core/proxy/wireguard"
 )
 
 // TestWireGuardServerInitializationError verifies that an error during TUN initialization

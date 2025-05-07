@@ -3,15 +3,16 @@ package dns
 import (
 	"context"
 	go_errors "errors"
-	"github.com/xtls/xray-core/common"
-	"github.com/xtls/xray-core/common/errors"
-	"github.com/xtls/xray-core/common/net"
-	"github.com/xtls/xray-core/common/signal/pubsub"
-	"github.com/xtls/xray-core/common/task"
-	dns_feature "github.com/xtls/xray-core/features/dns"
-	"golang.org/x/net/dns/dnsmessage"
 	"sync"
 	"time"
+
+	"github.com/GFW-knocker/Xray-core/common"
+	"github.com/GFW-knocker/Xray-core/common/errors"
+	"github.com/GFW-knocker/Xray-core/common/net"
+	"github.com/GFW-knocker/Xray-core/common/signal/pubsub"
+	"github.com/GFW-knocker/Xray-core/common/task"
+	dns_feature "github.com/GFW-knocker/Xray-core/features/dns"
+	"golang.org/x/net/dns/dnsmessage"
 )
 
 type CacheController struct {

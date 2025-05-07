@@ -73,13 +73,13 @@ func (h *Handler) policy() policy.Session {
 }
 
 func (h *Handler) resolveIP(ctx context.Context, domain string, localAddr net.Address) net.Address {
-	ips, err := h.dns.LookupIP(domain, dns.IPOption{
+	ips, _, err := h.dns.LookupIP(domain, dns.IPOption{
 		IPv4Enable: (localAddr == nil || localAddr.Family().IsIPv4()) && h.config.preferIP4(),
 		IPv6Enable: (localAddr == nil || localAddr.Family().IsIPv6()) && h.config.preferIP6(),
 	})
 	{ // Resolve fallback
 		if (len(ips) == 0 || err != nil) && h.config.hasFallback() && localAddr == nil {
-			ips, err = h.dns.LookupIP(domain, dns.IPOption{
+			ips, _, err = h.dns.LookupIP(domain, dns.IPOption{
 				IPv4Enable: h.config.fallbackIP4(),
 				IPv6Enable: h.config.fallbackIP6(),
 			})
@@ -561,7 +561,6 @@ func (f *FragmentWriter) Write(b []byte) (int, error) {
 	}
 }
 
-// copy from github.com/GFW-knocker/Xray-core/transport/internet/reality
 func randBetween(left int64, right int64) int64 {
 	if left == right {
 		return left
